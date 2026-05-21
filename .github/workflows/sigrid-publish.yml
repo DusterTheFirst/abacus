@@ -1,7 +1,7 @@
 name: Sigrid Publish
 
 permissions:
-  contents: read
+  # contents: read
 
 on:
   push:

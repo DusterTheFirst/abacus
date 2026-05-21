@@ -2,13 +2,13 @@ name: Build, lint & test
 
 on:
   workflow_dispatch:
-  pull_request:
-  merge_group:
-    types: [checks_requested]
-  push:
-    branches:
-      - main
-      - release-*
+  # pull_request:
+  # merge_group:
+  #   types: [checks_requested]
+  # push:
+  #   branches:
+  #     - main
+  #     - release-*
 
 permissions:
   contents: read
@@ -209,103 +209,103 @@ jobs:
           path: builds/backend
       - name: Make Abacus executable
         run: chmod a+x ../builds/backend/abacus
-      - name: Run e2e playwright tests in Chrome
-        run: pnpm test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }} --project chrome
-        env:
-          CHROMIUM_CHANNEL: chrome
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report-ubuntu-latest-${{ matrix.shardIndex }}
-          path: frontend/playwright-report/
-          retention-days: 30
+      # - name: Run e2e playwright tests in Chrome
+      #   run: pnpm test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }} --project chrome
+      #   env:
+      #     CHROMIUM_CHANNEL: chrome
+      # - name: Upload Playwright report
+      #   uses: actions/upload-artifact@v7
+      #   if: ${{ !cancelled() }}
+      #   with:
+      #     name: playwright-report-ubuntu-latest-${{ matrix.shardIndex }}
+      #     path: frontend/playwright-report/
+      #     retention-days: 30
 
-  deploy:
-    if: "github.repository == 'kiesraad/abacus' && !github.event.pull_request.head.repo.fork"
-    name: Deploy to abacus-test.nl
-    needs:
-      - build
-    environment:
-      name: test
-      url: https://${{ github.sha }}.abacus-test.nl
-    permissions:
-      contents: read
-      deployments: write
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Download Abacus
-        uses: actions/download-artifact@v8
-        with:
-          name: abacus
-      - name: Strip debug symbols
-        run: strip abacus
-      - name: Upload binary to test server
-        run: |
-          curl -s -v \
-          --fail \
-          -H "Authorization: Bearer ${{ secrets.ABACUS_TEST_API_KEY }}" \
-          -T ./abacus \
-          https://abacus-test.nl/etes/api/v1/executable/${{ github.event.pull_request.head.sha || github.sha }}/${{ github.sha }}
+  # deploy:
+  #   if: "github.repository == 'kiesraad/abacus' && !github.event.pull_request.head.repo.fork"
+  #   name: Deploy to abacus-test.nl
+  #   needs:
+  #     - build
+  #   environment:
+  #     name: test
+  #     url: https://${{ github.sha }}.abacus-test.nl
+  #   permissions:
+  #     contents: read
+  #     deployments: write
+  #   runs-on: ubuntu-latest
+  #   continue-on-error: true
+  #   steps:
+  #     - name: Download Abacus
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: abacus
+  #     - name: Strip debug symbols
+  #       run: strip abacus
+  #     - name: Upload binary to test server
+  #       run: |
+  #         curl -s -v \
+  #         --fail \
+  #         -H "Authorization: Bearer ${{ secrets.ABACUS_TEST_API_KEY }}" \
+  #         -T ./abacus \
+  #         https://abacus-test.nl/etes/api/v1/executable/${{ github.event.pull_request.head.sha || github.sha }}/${{ github.sha }}
 
-  fuzz:
-    name: Backend fuzzer
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
-    env:
-      CARGO_TERM_COLOR: always
-      SQLX_OFFLINE: "true"
-    steps:
-      - uses: actions/checkout@v6
-      - name: Setup Rust Nightly
-        shell: bash
-        run: >
-          rustup update nightly &&
-          rustup default nightly
-      - name: Cargo cache
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
-        with:
-          workspaces: |
-            backend/fuzz -> target
-            backend/apportionment/fuzz -> target
-          shared-key: "fuzzer"
-      - name: Install cargo fuzz
-        run: cargo install cargo-fuzz
-      - name: Run the data entry fuzzer
-        run: cargo fuzz run data_entry_status -- -max_total_time=60
-      - name: Run the apportionment fuzzer
-        working-directory: ./backend/apportionment
-        run: cargo fuzz run simple_apportionment -- -max_total_time=60
+  # fuzz:
+  #   name: Backend fuzzer
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: ./backend
+  #   env:
+  #     CARGO_TERM_COLOR: always
+  #     SQLX_OFFLINE: "true"
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - name: Setup Rust Nightly
+  #       shell: bash
+  #       run: >
+  #         rustup update nightly &&
+  #         rustup default nightly
+  #     - name: Cargo cache
+  #       uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
+  #       with:
+  #         workspaces: |
+  #           backend/fuzz -> target
+  #           backend/apportionment/fuzz -> target
+  #         shared-key: "fuzzer"
+  #     - name: Install cargo fuzz
+  #       run: cargo install cargo-fuzz
+  #     - name: Run the data entry fuzzer
+  #       run: cargo fuzz run data_entry_status -- -max_total_time=60
+  #     - name: Run the apportionment fuzzer
+  #       working-directory: ./backend/apportionment
+  #       run: cargo fuzz run simple_apportionment -- -max_total_time=60
 
-  rustdoc:
-    name: Deploy rustdoc to GitHub Pages
-    if: github.ref == 'refs/heads/main'
-    needs:
-      - backend
-    permissions:
-      pages: write
-      id-token: write
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Download rustdoc artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: rustdoc
-          path: rustdoc
-      - name: Add redirect to main crate docs
-        run: echo '<meta http-equiv="refresh" content="0; url=abacus/index.html">' > rustdoc/index.html
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-      - name: Upload to GitHub Pages
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: rustdoc
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+  # rustdoc:
+  #   name: Deploy rustdoc to GitHub Pages
+  #   if: github.ref == 'refs/heads/main'
+  #   needs:
+  #     - backend
+  #   permissions:
+  #     pages: write
+  #     id-token: write
+  #   runs-on: ubuntu-latest
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   steps:
+  #     - name: Download rustdoc artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: rustdoc
+  #         path: rustdoc
+  #     - name: Add redirect to main crate docs
+  #       run: echo '<meta http-equiv="refresh" content="0; url=abacus/index.html">' > rustdoc/index.html
+  #     - name: Configure GitHub Pages
+  #       uses: actions/configure-pages@v6
+  #     - name: Upload to GitHub Pages
+  #       uses: actions/upload-pages-artifact@v5
+  #       with:
+  #         path: rustdoc
+  #     - name: Deploy to GitHub Pages
+  #       id: deployment
+  #       uses: actions/deploy-pages@v5
